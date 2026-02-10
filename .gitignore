@@ -1,0 +1,13 @@
+# Vivado / XSim generated files
+*.vcd
+*.wdb
+*.sim
+*.log
+*.jou
+
+# Vivado project folders
+.run/
+.sim/
+.cache/
+.hw/
+.ip_user_files/
