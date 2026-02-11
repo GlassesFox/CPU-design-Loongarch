@@ -22,16 +22,6 @@ module mycpu_top(
 reg         reset;
 always @(posedge clk) reset <= ~resetn;
 
-reg         valid;
-always @(posedge clk) begin
-    if (reset) begin
-        valid <= 1'b0;
-    end
-    else begin
-        valid <= 1'b1;
-    end
-end
-
 // ========== Pipeline Registers ==========
 // IF/ID pipeline registers
 reg [31:0] IF_ID_pc;
@@ -77,6 +67,7 @@ wire        br_taken;
 wire [31:0] br_target;
 wire [31:0] inst;
 reg  [31:0] pc;
+reg  [31:0] inst_addr_r;
 
 wire [11:0] alu_op;
 wire        load_op;
@@ -153,6 +144,9 @@ wire [31:0] alu_result ;
 
 wire [31:0] mem_result;
 wire [31:0] final_result;
+wire        rj_eq_rd;
+wire        pipeline_stall;
+reg         fetch_valid;   // marks when IF stage capture corresponds to a valid BRAM return
 
 // ========== IF Stage ==========
 assign seq_pc = pc + 32'h4;
@@ -160,16 +154,24 @@ assign seq_pc = pc + 32'h4;
 
 always @(posedge clk) begin
     if (reset) begin
-        pc <= 32'h1bfffffc;    // so that first nextpc = 0x1c000000
+        pc          <= 32'h1bfffffc;    // so that first nextpc = 0x1c000000
+        fetch_valid <= 1'b0;
+        inst_addr_r <= 32'b0;
     end
     else begin
-        pc <= nextpc;
+        fetch_valid <= 1'b1;            // becomes valid one cycle after reset
+        if (!pipeline_stall) begin
+            pc <= nextpc;
+        end
+        // Remember the address issued to inst RAM; inst_sram_rdata returns for this address next cycle.
+        // Must update even when stalling, because BRAM is still being clocked and sampling inst_sram_addr.
+        inst_addr_r <= nextpc;
     end
 end
 
 assign inst_sram_en    = 1'b1;
 assign inst_sram_we    = 4'b0;
-assign inst_sram_addr  = nextpc;
+assign inst_sram_addr  = nextpc;  // pre-IF issues nextpc; BRAM returns it in IF next cycle
 assign inst_sram_wdata = 32'b0;
 
 // IF/ID pipeline register update
@@ -179,16 +181,20 @@ always @(posedge clk) begin
         IF_ID_inst  <= 32'b0;
         IF_ID_valid <= 1'b0;
     end
+    else if (pipeline_stall) begin
+        // Stall: freeze IF/ID, do nothing
+    end
     else if (br_taken) begin
-        // Branch taken, flush IF/ID
+        // Branch taken, flush IF/ID (cancel technique)
         IF_ID_pc    <= 32'b0;
         IF_ID_inst  <= 32'b0;
         IF_ID_valid <= 1'b0;
     end
     else begin
-        IF_ID_pc    <= pc;
+        // Capture instruction that matches current PC (BRAM returns data of addr issued last cycle)
+        IF_ID_pc    <= inst_addr_r;
         IF_ID_inst  <= inst_sram_rdata;
-        IF_ID_valid <= valid;
+        IF_ID_valid <= fetch_valid;
     end
 end
 
@@ -301,8 +307,11 @@ regfile u_regfile(
     .wdata  (rf_wdata )
     );
 
-assign rj_value  = rf_rdata1;
-assign rkd_value = rf_rdata2;
+// WB-to-ID bypass: resolve WB-stage hazard without stalling (write-first behavior)
+wire wb_bypass_r1 = (rf_raddr1 != 5'b0) && (rf_raddr1 == rf_waddr) && rf_we;
+wire wb_bypass_r2 = (rf_raddr2 != 5'b0) && (rf_raddr2 == rf_waddr) && rf_we;
+assign rj_value  = wb_bypass_r1 ? rf_wdata : rf_rdata1;
+assign rkd_value = wb_bypass_r2 ? rf_wdata : rf_rdata2;
 
 // Branch decision in ID stage
 assign rj_eq_rd = (rj_value == rkd_value);
@@ -311,16 +320,36 @@ assign br_taken = (   inst_beq  &&  rj_eq_rd
                    || inst_jirl
                    || inst_bl
                    || inst_b
-                  ) && IF_ID_valid;
+                  ) && IF_ID_valid && !pipeline_stall;  // Don't branch during stall
 assign br_target = (inst_beq || inst_bne || inst_bl || inst_b) ? (IF_ID_pc + br_offs) :
                                                    /*inst_jirl*/ (rj_value + jirl_offs);
 
+// ========== Hazard Detection (Stall) ==========
+// Which registers does the ID instruction actually need?
+wire id_need_r1 = ~inst_b & ~inst_bl & ~inst_lu12i_w;
+wire id_need_r2 = inst_add_w | inst_sub_w | inst_slt | inst_sltu
+                | inst_nor  | inst_and   | inst_or  | inst_xor
+                | inst_beq  | inst_bne   | inst_st_w;
+
+// RAW hazard detection with EX stage
+wire hazard_r1_ex  = id_need_r1 & (rf_raddr1 != 5'b0) & (rf_raddr1 == ID_EX_dest)  & ID_EX_gr_we  & ID_EX_valid;
+wire hazard_r2_ex  = id_need_r2 & (rf_raddr2 != 5'b0) & (rf_raddr2 == ID_EX_dest)  & ID_EX_gr_we  & ID_EX_valid;
+// RAW hazard detection with MEM stage
+wire hazard_r1_mem = id_need_r1 & (rf_raddr1 != 5'b0) & (rf_raddr1 == EX_MEM_dest) & EX_MEM_gr_we & EX_MEM_valid;
+wire hazard_r2_mem = id_need_r2 & (rf_raddr2 != 5'b0) & (rf_raddr2 == EX_MEM_dest) & EX_MEM_gr_we & EX_MEM_valid;
+
+// Pipeline stall: freeze IF and ID when RAW hazard detected
+assign pipeline_stall = IF_ID_valid & (hazard_r1_ex | hazard_r1_mem | hazard_r2_ex | hazard_r2_mem);
+
 // pre-IF: nextpc selection
-assign nextpc = br_taken ? br_target : seq_pc;
+assign nextpc = pipeline_stall ? pc :           // During stall, keep current PC
+                br_taken       ? br_target :   // Branch to target
+                                 seq_pc;       // Sequential
 
 // ID/EX pipeline register update
 always @(posedge clk) begin
-    if (reset) begin
+    if (reset || pipeline_stall) begin
+        // Reset or stall: insert bubble (NOP) into EX stage
         ID_EX_pc           <= 32'b0;
         ID_EX_alu_op       <= 12'b0;
         ID_EX_src1_is_pc   <= 1'b0;
