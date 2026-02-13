@@ -307,11 +307,36 @@ regfile u_regfile(
     .wdata  (rf_wdata )
     );
 
-// WB-to-ID bypass: resolve WB-stage hazard without stalling (write-first behavior)
-wire wb_bypass_r1 = (rf_raddr1 != 5'b0) && (rf_raddr1 == rf_waddr) && rf_we;
-wire wb_bypass_r2 = (rf_raddr2 != 5'b0) && (rf_raddr2 == rf_waddr) && rf_we;
-assign rj_value  = wb_bypass_r1 ? rf_wdata : rf_rdata1;
-assign rkd_value = wb_bypass_r2 ? rf_wdata : rf_rdata2;
+// ========== Operand Forwarding (Bypass) ==========
+// Forward to ID stage to reduce stalls.
+// Priority: EX (youngest) > MEM > WB > regfile.
+// Note: EX-stage forwarding is only valid for ALU-like results; loads in EX have no data yet.
+wire [31:0] ex_forward_value  = alu_result;
+wire        ex_forward_valid  = ID_EX_valid && ID_EX_gr_we && (ID_EX_dest != 5'b0) && !ID_EX_res_from_mem;
+
+wire [31:0] mem_forward_value = EX_MEM_res_from_mem ? data_sram_rdata : EX_MEM_alu_result;
+wire        mem_forward_valid = EX_MEM_valid && EX_MEM_gr_we && (EX_MEM_dest != 5'b0);
+
+wire        wb_forward_valid  = rf_we && (rf_waddr != 5'b0);
+wire [31:0] wb_forward_value  = rf_wdata;
+
+wire r1_from_ex  = ex_forward_valid  && (rf_raddr1 == ID_EX_dest);
+wire r1_from_mem = mem_forward_valid && (rf_raddr1 == EX_MEM_dest);
+wire r1_from_wb  = wb_forward_valid  && (rf_raddr1 == rf_waddr);
+assign rj_value  = (rf_raddr1 == 5'b0) ? 32'b0 :
+                   r1_from_ex  ? ex_forward_value  :
+                   r1_from_mem ? mem_forward_value :
+                   r1_from_wb  ? wb_forward_value  :
+                                 rf_rdata1;
+
+wire r2_from_ex  = ex_forward_valid  && (rf_raddr2 == ID_EX_dest);
+wire r2_from_mem = mem_forward_valid && (rf_raddr2 == EX_MEM_dest);
+wire r2_from_wb  = wb_forward_valid  && (rf_raddr2 == rf_waddr);
+assign rkd_value = (rf_raddr2 == 5'b0) ? 32'b0 :
+                   r2_from_ex  ? ex_forward_value  :
+                   r2_from_mem ? mem_forward_value :
+                   r2_from_wb  ? wb_forward_value  :
+                                 rf_rdata2;
 
 // Branch decision in ID stage
 assign rj_eq_rd = (rj_value == rkd_value);
@@ -338,8 +363,10 @@ wire hazard_r2_ex  = id_need_r2 & (rf_raddr2 != 5'b0) & (rf_raddr2 == ID_EX_dest
 wire hazard_r1_mem = id_need_r1 & (rf_raddr1 != 5'b0) & (rf_raddr1 == EX_MEM_dest) & EX_MEM_gr_we & EX_MEM_valid;
 wire hazard_r2_mem = id_need_r2 & (rf_raddr2 != 5'b0) & (rf_raddr2 == EX_MEM_dest) & EX_MEM_gr_we & EX_MEM_valid;
 
-// Pipeline stall: freeze IF and ID when RAW hazard detected
-assign pipeline_stall = IF_ID_valid & (hazard_r1_ex | hazard_r1_mem | hazard_r2_ex | hazard_r2_mem);
+// Pipeline stall: with forwarding enabled, only stall for load-use hazard when the load is in EX stage.
+wire load_use_hazard = ID_EX_valid && ID_EX_res_from_mem && ID_EX_gr_we && (ID_EX_dest != 5'b0) &&
+                       ((id_need_r1 && (rf_raddr1 == ID_EX_dest)) || (id_need_r2 && (rf_raddr2 == ID_EX_dest)));
+assign pipeline_stall = IF_ID_valid && load_use_hazard;
 
 // pre-IF: nextpc selection
 assign nextpc = pipeline_stall ? pc :           // During stall, keep current PC
