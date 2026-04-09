@@ -1,0 +1,4 @@
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\soc_verify\soc_bram\testbench\mycpu_tb.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\soc_verify\soc_bram\testbench\sync_ram.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\soc_verify\soc_bram\testbench\div_unsigned_stub.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\soc_verify\soc_bram\testbench\div_signed_stub.v

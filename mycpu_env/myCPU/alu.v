@@ -1,5 +1,5 @@
 module alu(
-  input  wire [11:0] alu_op,
+  input  wire [14:0] alu_op,
   input  wire [31:0] alu_src1,
   input  wire [31:0] alu_src2,
   output wire [31:0] alu_result
@@ -17,6 +17,9 @@ wire op_sll;   //logic left shift
 wire op_srl;   //logic right shift
 wire op_sra;   //arithmetic right shift
 wire op_lui;   //Load Upper Immediate
+wire op_mul;   //mul low 32
+wire op_mulh;  //mul high 32 (signed)
+wire op_mulhu; //mul high 32 (unsigned)
 
 // control code decomposition
 assign op_add  = alu_op[ 0];
@@ -31,6 +34,9 @@ assign op_sll  = alu_op[ 8];
 assign op_srl  = alu_op[ 9];
 assign op_sra  = alu_op[10];
 assign op_lui  = alu_op[11];
+assign op_mul  = alu_op[12];
+assign op_mulh = alu_op[13];
+assign op_mulhu= alu_op[14];
 
 wire [31:0] add_sub_result;
 wire [31:0] slt_result;         //有符号数比较，前者小于后者rd置1
@@ -43,6 +49,8 @@ wire [31:0] lui_result;         //高位加载
 wire [31:0] sll_result;         //逻辑左移
 wire [63:0] sr64_result;
 wire [31:0] sr_result;
+
+wire [31:0] mul_result;
 
 
 // 32-bit adder
@@ -84,6 +92,23 @@ assign sr64_result = {{32{op_sra & alu_src1[31]}}, alu_src1[31:0]} >> alu_src2[4
 
 assign sr_result   = sr64_result[31:0];
 
+// MUL/MULH: unified 33-bit signed multiplication
+wire        mul_is_unsigned;
+wire signed [32:0] mul_src1;
+wire signed [32:0] mul_src2;
+wire signed [65:0] mul_prod;
+wire [31:0] mul_lo;
+wire [31:0] mul_hi;
+
+assign mul_is_unsigned = op_mulhu;
+assign mul_src1 = {(mul_is_unsigned ? 1'b0 : alu_src1[31]), alu_src1};
+assign mul_src2 = {(mul_is_unsigned ? 1'b0 : alu_src2[31]), alu_src2};
+assign mul_prod = mul_src1 * mul_src2;
+assign mul_lo   = mul_prod[31:0];
+assign mul_hi   = mul_prod[63:32];
+
+assign mul_result = op_mul ? mul_lo : mul_hi;
+
 // final result mux
 assign alu_result = ({32{op_add|op_sub}} & add_sub_result)
                   | ({32{op_slt       }} & slt_result)
@@ -94,6 +119,7 @@ assign alu_result = ({32{op_add|op_sub}} & add_sub_result)
                   | ({32{op_xor       }} & xor_result)
                   | ({32{op_lui       }} & lui_result)
                   | ({32{op_sll       }} & sll_result)
-                  | ({32{op_srl|op_sra}} & sr_result);
+                  | ({32{op_srl|op_sra}} & sr_result)
+                  | ({32{op_mul|op_mulh|op_mulhu}} & mul_result);
 
 endmodule

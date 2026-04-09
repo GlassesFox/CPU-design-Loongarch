@@ -173,6 +173,7 @@ mycpu_top cpu(
     .data_sram_req    (cpu_data_req    ),
     .data_sram_wr     (cpu_data_wr     ),
     .data_sram_size   (cpu_data_size   ),
+        .hw_int_in        (8'b0          ),
     .data_sram_wstrb  (cpu_data_wstrb  ),
     .data_sram_addr   (cpu_data_addr   ),
     .data_sram_wdata  (cpu_data_wdata  ),

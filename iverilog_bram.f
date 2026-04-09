@@ -1,0 +1,15 @@
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\myCPU\alu.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\myCPU\decoder_2_4.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\myCPU\decoder_4_16.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\myCPU\decoder_5_32.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\myCPU\decoder_6_64.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\myCPU\mycpu_top.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\myCPU\regfile.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\myCPU\csr_exc_int.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\soc_verify\soc_bram\rtl\soc_lite_top.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\soc_verify\soc_bram\rtl\BRIDGE\bridge_1x2.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\soc_verify\soc_bram\rtl\CONFREG\confreg.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\soc_verify\soc_bram\testbench\mycpu_tb.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\soc_verify\soc_bram\testbench\sync_ram.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\soc_verify\soc_bram\testbench\div_unsigned_stub.v
+K:\documents\LoongsonEdu\cdp_ede_local\mycpu_env\soc_verify\soc_bram\testbench\div_signed_stub.v

@@ -9,5 +9,5 @@ if { [string length $curr_wave] == 0 } {
 }
 log_wave -r /
 
-run 1000ns
+run 3000000ns
 quit

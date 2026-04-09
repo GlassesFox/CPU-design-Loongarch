@@ -149,6 +149,7 @@ mycpu_top cpu(
    
     .data_sram_we     (cpu_data_we   ),
     .data_sram_addr   (cpu_data_addr ),
+        .hw_int_in        (8'b0          ),
     .data_sram_wdata  (cpu_data_wdata),
     .data_sram_rdata  (cpu_data_rdata),
 

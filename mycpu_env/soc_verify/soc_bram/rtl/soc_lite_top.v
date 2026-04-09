@@ -151,6 +151,7 @@ mycpu_top cpu(
     .data_sram_en     (cpu_data_en   ),
     .data_sram_we     (cpu_data_we   ),
     .data_sram_addr   (cpu_data_addr ),
+        .hw_int_in        (8'b0          ),
     .data_sram_wdata  (cpu_data_wdata),
     .data_sram_rdata  (cpu_data_rdata),
 
@@ -167,7 +168,7 @@ inst_ram inst_ram
     .clka  (cpu_clk            ),   
     .ena   (cpu_inst_en        ),
     .wea   (cpu_inst_we        ),   //3:0
-    .addra (cpu_inst_addr[19:2]),   //17:0
+    .addra (cpu_inst_addr[19:2]),   //17:0，[19:2] 是 18 位地址，理论上能索引2^18个32位字，容量大约是2^18 * 4B = 1MB
     .dina  (cpu_inst_wdata     ),   //31:0
     .douta (cpu_inst_rdata     )    //31:0
 );

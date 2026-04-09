@@ -1,0 +1,5 @@
+# Vivado logs / temp dirs (do not commit)
+/.Xil/
+/vivado*.jou
+/vivado*.log
+/vivado*.str

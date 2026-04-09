@@ -1,0 +1,8 @@
+# Vivado run outputs (do not commit)
+/project/
+/.Xil/
+
+# Logs / journals / traces
+/vivado*.jou
+/vivado*.log
+/vivado*.str
